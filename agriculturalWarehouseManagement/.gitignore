@@ -1,0 +1,26 @@
+### Java ###
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+
+### IDE ###
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+### Logs ###
+*.log
+
+### Claude ###
+.claude/
+
+### OS ###
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

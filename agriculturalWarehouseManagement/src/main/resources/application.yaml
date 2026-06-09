@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: agriculturalWarehouseManagement
+  datasource:
+    url: jdbc:mysql://localhost:3306/warehouse_db?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 1234
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: never
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.origin.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+server:
+  port: 8080
+
+hm:
+  jwt:
+    secret-key: agricultural-warehouse-secret-key-2026
+    ttl-millis: 3600000
+alioss:
+  endpoint:  *****
+  access-key-id: *****
+  access-key-secret: *****
+  bucket-name: java-web-ai-wsy

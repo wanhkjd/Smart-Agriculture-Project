@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>农产品电商仓配管理系统</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+    <!-- Element Plus -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
+</head>
+<body>
+<div id="app">
+    <!-- 登录界面 -->
+    <div v-if="showLogin" style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#2d8c3c,#1a6b2a);">
+        <div style="background:#fff;border-radius:12px;padding:40px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+            <h2 style="text-align:center;margin-bottom:24px;color:#2d8c3c;">农产品仓配管理系统</h2>
+            <div class="form-group">
+                <label>用户名</label>
+                <input v-model="loginForm.username" @keyup.enter="doLogin" style="padding:10px 12px;">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" v-model="loginForm.password" @keyup.enter="doLogin" style="padding:10px 12px;">
+            </div>
+            <button class="btn btn-primary" @click="doLogin" style="width:100%;padding:10px;font-size:15px;margin-top:8px;">登 录</button>
+            <p style="text-align:center;margin-top:16px;font-size:12px;color:#999;">默认账号: admin / keeper / picker &nbsp; 密码: 123456</p>
+        </div>
+    </div>
+
+    <!-- 主界面 -->
+    <template v-if="!showLogin">
+        <!-- 顶部导航 -->
+        <div class="header">
+            <h1>农产品仓配管理系统</h1>
+            <div class="user-info">
+                <span>{{ currentUser.realName }}</span>
+                <span class="role-tag">{{ currentUser.role }}</span>
+                <button class="btn btn-sm btn-default" @click="doLogout" style="color:#fff;border-color:rgba(255,255,255,.4);background:transparent;">退出</button>
+            </div>
+        </div>
+
+        <!-- Tab导航 -->
+        <div class="tabs-nav">
+            <div v-for="tab in visibleTabs" :key="tab.key"
+                 :class="['tab-item', { active: activeTab === tab.key }]"
+                 @click="switchTab(tab.key)">{{ tab.label }}</div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+
+            <!-- ===== 仪表盘 ===== -->
+            <template v-if="activeTab === 'dashboard'">
+                <div class="stats-row">
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-info"><div class="stat-val">{{ dashboard?.productCount || 0 }}</div><div class="stat-label">商品种类</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📋</div>
+                        <div class="stat-info"><div class="stat-val">{{ dashboard?.inventoryCount || 0 }}</div><div class="stat-label">库存批次</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⚠</div>
+                        <div class="stat-info"><div class="stat-val">{{ dashboard?.expiringCount || 0 }}</div><div class="stat-label">临期预警</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📝</div>
+                        <div class="stat-info"><div class="stat-val">{{ dashboard?.orderCount || 0 }}</div><div class="stat-label">待处理订单</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📉</div>
+                        <div class="stat-info"><div class="stat-val">{{ dashboard?.lowStockCount || 0 }}</div><div class="stat-label">低库存预警</div></div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔄</div>
+                        <div class="stat-info"><div class="stat-val">{{ dashboard?.pendingReplenishCount || 0 }}</div><div class="stat-label">待补货</div></div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                    <div class="panel">
+                        <div class="panel-header"><h3>拣货策略</h3></div>
+                        <div class="strategy-selector">
+                            <span v-for="s in availableStrategies" :key="s"
+                                  :class="['strategy-tag', { active: pickingStrategy === s }]"
+                                  @click="switchStrategy(s)">{{ s }}</span>
+                        </div>
+                        <p style="margin-top:10px;font-size:13px;color:#666;">当前策略: <strong>{{ pickingStrategy }}</strong></p>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-header"><h3>快速操作</h3></div>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" @click="activeTab='inbound';switchTab('inbound');openInboundForm()">+ 入库</button>
+                            <button class="btn btn-primary" @click="activeTab='outbound';switchTab('outbound');openOutboundForm()">+ 出库</button>
+                            <button class="btn btn-primary" @click="activeTab='orders';switchTab('orders');openOrderForm()">+ 订单</button>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+                    <div class="panel">
+                        <div class="panel-header"><h3>商品数量分布</h3></div>
+                        <div ref="barRef" id="barChart" style="width:100%;height:350px;"></div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-header"><h3>分类数量占比</h3></div>
+                        <div ref="pieRef" id="pieChart" style="width:100%;height:350px;"></div>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ===== 商品管理 ===== -->
+            <template v-if="activeTab === 'products'">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>农产品信息维护</h3>
+                        <button class="btn btn-primary" @click="openProductForm()">+ 新增商品</button>
+                    </div>
+                    <div class="search-bar">
+                        <select v-model="productSearch.category" @change="searchProducts">
+                            <option value="">全部分类</option>
+                            <option>叶菜</option><option>根茎</option><option>水果</option><option>冷链品</option><option>粮油</option>
+                        </select>
+                        <input v-model="productSearch.keyword" placeholder="搜索商品名称..." @keyup.enter="searchProducts">
+                        <button class="btn btn-primary" @click="searchProducts">搜索</button>
+                        <button class="btn btn-default" @click="loadProducts">全部</button>
+                    </div>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>图片</th><th>ID</th><th>名称</th><th>分类</th><th>保质期(天)</th><th>存储条件</th><th>数量</th><th>单位</th><th>状态</th><th>操作</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="p in products" :key="p.id">
+                                <td><img v-if="p.image" :src="p.image" style="width:40px;height:40px;object-fit:cover;border-radius:4px;" @error="$event.target.style.display='none'"><span v-else style="color:#ccc;">-</span></td>
+                                <td>{{ p.id }}</td>
+                                <td><strong>{{ p.name }}</strong></td>
+                                <td>{{ p.category }}</td>
+                                <td>{{ p.shelfLifeDays }}</td>
+                                <td><span :class="['tag', p.storageCondition==='冷藏'||p.storageCondition==='冷冻'?'tag-info':'tag-success']">{{ p.storageCondition }}</span></td>
+                                <td>{{ p.totalStock || 0 }}</td>
+                                <td>{{ p.unit }}</td>
+                                <td><span :class="['tag', p.status===1?'tag-success':'tag-default']">{{ p.status===1?'上架':'下架' }}</span></td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-default" @click="openProductForm(p)">编辑</button>
+                                        <button class="btn btn-sm btn-danger" @click="deleteProduct(p.id)">删除</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="!products.length" class="empty">暂无商品数据</div>
+                </div>
+            </template>
+
+            <!-- ===== 库存管理 ===== -->
+            <template v-if="activeTab === 'inventory'">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>库存管理 — 观察者模式（库存变化自动通知预警+报表）</h3>
+                        <div class="btn-group">
+                            <button :class="['btn btn-sm', inventoryView==='all'?'btn-primary':'btn-default']" @click="inventoryView='all';loadInventories()">全部库存</button>
+                            <button :class="['btn btn-sm', inventoryView==='expiring'?'btn-primary':'btn-default']" @click="inventoryView='expiring';loadExpiring()">临期预警</button>
+                            <button :class="['btn btn-sm', inventoryView==='lowstock'?'btn-primary':'btn-default']" @click="inventoryView='lowstock';loadLowStock()">低库存预警</button>
+                        </div>
+                    </div>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th v-if="inventoryView!=='lowstock'">ID</th><th>商品</th><th>分类</th>
+                            <th v-if="inventoryView!=='lowstock'">批次号</th><th>数量</th>
+                            <th v-if="inventoryView!=='lowstock'">货位</th><th v-if="inventoryView!=='lowstock'">生产日期</th><th v-if="inventoryView!=='lowstock'">到期日期</th>
+                            <th>状态</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-if="inventoryView==='lowstock'" v-for="i in lowStockItems" :key="i.productId">
+                                <td><strong>{{ i.productName }}</strong></td>
+                                <td>{{ i.category }}</td>
+                                <td><span style="color:red;font-weight:bold;">{{ i.totalQuantity }}</span> {{ i.unit || '' }}</td>
+                                <td><span class="tag tag-danger">低库存预警</span></td>
+                            </tr>
+                            <tr v-else v-for="i in (inventoryView==='expiring' ? expiringItems : inventories)" :key="i.id">
+                                <td>{{ i.id }}</td>
+                                <td><strong>{{ i.productName }}</strong></td>
+                                <td>{{ i.category }}</td>
+                                <td>{{ i.batchNo }}</td>
+                                <td>{{ i.quantity }}</td>
+                                <td>{{ i.locationCode || '-' }}</td>
+                                <td>{{ i.productionDate }}</td>
+                                <td>{{ i.expiryDate }}</td>
+                                <td><span :class="['tag', statusTag(i.status)]">{{ i.status }}</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="!inventories.length && inventoryView==='all'" class="empty">暂无库存记录</div>
+                    <div v-if="!expiringItems.length && inventoryView==='expiring'" class="empty">暂无临期商品</div>
+                    <div v-if="!lowStockItems.length && inventoryView==='lowstock'" class="empty">暂无低库存预警</div>
+                </div>
+            </template>
+
+            <!-- ===== 入库管理 ===== -->
+            <template v-if="activeTab === 'inbound'">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>入库单管理</h3>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" @click="openInboundForm()">+ 创建入库单</button>
+                            <button class="btn btn-default" @click="undoInbound">↩ 撤销入库</button>
+                        </div>
+                    </div>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>ID</th><th>单号</th><th>商品</th><th>批次</th><th>供应商</th><th>数量</th><th>生产日期</th><th>货位</th><th>质检</th><th>操作员</th><th>状态</th><th>操作</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="o in inboundOrders" :key="o.id">
+                                <td>{{ o.id }}</td>
+                                <td>{{ o.orderNo }}</td>
+                                <td><strong>{{ o.productName }}</strong></td>
+                                <td>{{ o.batchNo }}</td>
+                                <td>{{ o.supplier || '-' }}</td>
+                                <td>{{ o.quantity }}</td>
+                                <td>{{ o.productionDate || '-' }}</td>
+                                <td>{{ o.locationCode || '-' }}</td>
+                                <td><span :class="['tag', statusTag(o.qualityCheck)]">{{ o.qualityCheck }}</span></td>
+                                <td>{{ o.operator }}</td>
+                                <td><span :class="['tag', statusTag(o.status)]">{{ o.status }}</span></td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button v-if="o.status==='待质检'" class="btn btn-sm btn-primary" @click="qualityCheck(o.id, true)">合格</button>
+                                        <button v-if="o.status==='待质检'" class="btn btn-sm btn-danger" @click="qualityCheck(o.id, false)">不合格</button>
+                                        <button v-if="o.status==='质检中'" class="btn btn-sm btn-primary" @click="putaway(o.id)">上架</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+
+            <!-- ===== 出库拣货 ===== -->
+            <template v-if="activeTab === 'outbound'">
+                <!-- 出库单 -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>出库单管理 — 策略模式 + 命令模式</h3>
+                        <div class="btn-group">
+                            <button class="btn btn-primary" @click="openOutboundForm()">+ 创建出库单</button>
+                        </div>
+                    </div>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>ID</th><th>单号</th><th>商品</th><th>批次</th><th>数量</th><th>策略</th><th>拣货路径</th><th>操作员</th><th>状态</th><th>操作</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="o in outboundOrders" :key="o.id">
+                                <td>{{ o.id }}</td>
+                                <td>{{ o.orderNo }}</td>
+                                <td><strong>{{ o.productName }}</strong></td>
+                                <td>{{ o.batchNo }}</td>
+                                <td>{{ o.quantity }}</td>
+                                <td><span :class="['tag', o.pickingStrategy==='FEFO'?'tag-warning':(o.pickingStrategy==='CATEGORY'?'tag-info':'tag-success')]">{{ o.pickingStrategy || 'FIFO' }}</span></td>
+                                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="o.pickingPath">{{ o.pickingPath || '-' }}</td>
+                                <td>{{ o.operator }}</td>
+                                <td><span :class="['tag', statusTag(o.status)]">{{ o.status }}</span></td>
+                                <td>
+                                    <button v-if="o.status==='待拣货'" class="btn btn-sm btn-primary" @click="moveToPickingArea(o.id)">移入拣货区</button>
+                                    <button v-if="o.status==='待拣货'" class="btn btn-sm btn-danger" @click="cancelOutbound(o.id)">取消</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="outboundPage.totalPages > 1" class="pagination-bar">
+                        <button class="btn btn-sm btn-default" :disabled="outboundPage.page <= 1" @click="prevOutboundPage">上一页</button>
+                        <span>第 {{ outboundPage.page }} / {{ outboundPage.totalPages }} 页 (共 {{ outboundPage.total }} 条)</span>
+                        <button class="btn btn-sm btn-default" :disabled="outboundPage.page >= outboundPage.totalPages" @click="nextOutboundPage">下一页</button>
+                    </div>
+                </div>
+
+                <!-- 拣货任务管理 -->
+                <div class="panel">
+                    <div class="panel-header"><h3>拣货任务管理</h3></div>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>ID</th><th>任务号</th><th>商品</th><th>数量</th><th>拣货路径</th><th>拣货员</th><th>状态</th><th>操作</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="t in pickingTasks" :key="t.id">
+                                <td>{{ t.id }}</td>
+                                <td>{{ t.taskNo }}</td>
+                                <td><strong>{{ t.productName }}</strong></td>
+                                <td>{{ t.quantity }}</td>
+                                <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" :title="t.pickingPath">{{ t.pickingPath || '-' }}</td>
+                                <td>{{ t.picker || '-' }}</td>
+                                <td><span :class="['tag', statusTag(t.status)]">{{ t.status }}</span></td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button v-if="t.status==='待分配'" class="btn btn-sm btn-primary" @click="openPickerSelect(t.id)">分配拣货员</button>
+                                        <button v-if="t.status==='已分配'||t.status==='拣货中'" class="btn btn-sm btn-primary" @click="confirmPickingTask(t.outboundOrderId)">确认拣货</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="!pickingTasks.length" class="empty">暂无拣货任务</div>
+                    <div v-if="pickingPage.totalPages > 1" class="pagination-bar">
+                        <button class="btn btn-sm btn-default" :disabled="pickingPage.page <= 1" @click="prevPickingPage">上一页</button>
+                        <span>第 {{ pickingPage.page }} / {{ pickingPage.totalPages }} 页 (共 {{ pickingPage.total }} 条)</span>
+                        <button class="btn btn-sm btn-default" :disabled="pickingPage.page >= pickingPage.totalPages" @click="nextPickingPage">下一页</button>
+                    </div>
+                </div>
+
+                <!-- 设备状态（状态模式） -->
+                <div class="panel">
+                    <div class="panel-header"><h3>PDA设备状态 — 状态模式</h3></div>
+                    <div class="device-grid">
+                        <div v-for="d in deviceStates" :key="d.deviceId" class="device-card">
+                            <div class="device-name">{{ d.deviceId }}</div>
+                            <div :class="['tag', statusTag(d.stateName)]">{{ d.stateName }}</div>
+                        </div>
+                    </div>
+                    <p style="font-size:12px;color:#999;margin-top:8px;">状态流转: 空闲→作业中→空闲 | 空闲/作业中→故障→空闲 | 空闲→充电中→空闲</p>
+                </div>
+            </template>
+
+            <!-- ===== 订单管理 ===== -->
+            <template v-if="activeTab === 'orders'">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>客户订单管理 <span style="font-size:12px;color:#999;">(库存锁定→生成出库单→生成拣货任务→打印物流单)</span></h3>
+                        <button class="btn btn-primary" @click="openOrderForm()">+ 创建订单</button>
+                    </div>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>ID</th><th>订单号</th><th>商品</th><th>数量</th><th>客户</th><th>电话</th><th>地址</th><th>状态</th><th>操作</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="o in customerOrders" :key="o.id">
+                                <td>{{ o.id }}</td>
+                                <td>{{ o.orderNo }}</td>
+                                <td><strong>{{ o.productName }}</strong></td>
+                                <td>{{ o.quantity }}</td>
+                                <td>{{ o.customerName }}</td>
+                                <td>{{ o.customerPhone }}</td>
+                                <td>{{ o.deliveryAddress }}</td>
+                                <td><span :class="['tag', statusTag(o.status)]">{{ o.status }}</span></td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button v-if="o.status==='待处理'" class="btn btn-sm btn-primary" @click="processOrder(o.id)">处理订单</button>
+                                        <button v-if="o.status==='待处理'" class="btn btn-sm btn-danger" @click="cancelOrder(o.id)">取消</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+
+            <!-- ===== 补货管理 ===== -->
+            <template v-if="activeTab === 'replenish'">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>补货任务管理</h3>
+                        <button class="btn btn-primary" @click="openReplenishForm()">+ 创建补货任务</button>
+                    </div>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>ID</th><th>任务号</th><th>商品</th><th>当前库存</th><th>补货数量</th><th>原因</th><th>创建人</th><th>状态</th><th>操作</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="t in replenishTasks" :key="t.id">
+                                <td>{{ t.id }}</td>
+                                <td>{{ t.taskNo }}</td>
+                                <td><strong>{{ t.productName }}</strong></td>
+                                <td>{{ t.currentQuantity }}</td>
+                                <td>{{ t.replenishQuantity }}</td>
+                                <td>{{ t.reason }}</td>
+                                <td>{{ t.creator }}</td>
+                                <td><span :class="['tag', statusTag(t.status)]">{{ t.status }}</span></td>
+                                <td>
+                                    <button v-if="t.status==='待处理'" class="btn btn-sm btn-primary" @click="confirmReplenish(t.id)">确认补货</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </template>
+
+            <!-- ===== 报表分析 ===== -->
+            <template v-if="activeTab === 'reports'">
+                <div class="panel">
+                    <div class="panel-header"><h3>库存周转报表</h3></div>
+                    <table class="data-table">
+                        <thead><tr><th>商品名称</th><th>分类</th><th>累计入库</th><th>累计出库</th><th>当前库存</th><th>周转率</th><th>临期数</th><th>过期数</th></tr></thead>
+                        <tbody>
+                            <tr v-for="r in reports" :key="r.productName">
+                                <td><strong>{{ r.productName }}</strong></td>
+                                <td>{{ r.category }}</td>
+                                <td>{{ r.totalInbound }}</td>
+                                <td>{{ r.totalOutbound }}</td>
+                                <td>{{ r.currentStock }}</td>
+                                <td>{{ r.turnoverRate }}</td>
+                                <td><span :class="['tag', r.expiringCount > 0 ? 'tag-warning' : 'tag-success']">{{ r.expiringCount }}</span></td>
+                                <td><span :class="['tag', r.expiredCount > 0 ? 'tag-danger' : 'tag-success']">{{ r.expiredCount }}</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="!reports.length" class="empty">暂无报表数据</div>
+                    <div v-if="reportPage.totalPages > 1" class="pagination-bar">
+                        <button class="btn btn-sm btn-default" :disabled="reportPage.page <= 1" @click="prevReportPage">上一页</button>
+                        <span>第 {{ reportPage.page }} / {{ reportPage.totalPages }} 页 (共 {{ reportPage.total }} 条)</span>
+                        <button class="btn btn-sm btn-default" :disabled="reportPage.page >= reportPage.totalPages" @click="nextReportPage">下一页</button>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header"><h3>操作日志</h3></div>
+                    <table class="data-table">
+                        <thead><tr><th>时间</th><th>操作</th><th>目标类型</th><th>操作人</th><th>详情</th></tr></thead>
+                        <tbody>
+                            <tr v-for="l in operationLogs" :key="l.id">
+                                <td>{{ l.createdAt }}</td>
+                                <td>{{ l.operation }}</td>
+                                <td>{{ l.targetType }}#{{ l.targetId }}</td>
+                                <td>{{ l.operator }}</td>
+                                <td>{{ l.detail }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="logPage.totalPages > 1" class="pagination-bar">
+                        <button class="btn btn-sm btn-default" :disabled="logPage.page <= 1" @click="prevLogPage">上一页</button>
+                        <span>第 {{ logPage.page }} / {{ logPage.totalPages }} 页 (共 {{ logPage.total }} 条)</span>
+                        <button class="btn btn-sm btn-default" :disabled="logPage.page >= logPage.totalPages" @click="nextLogPage">下一页</button>
+                    </div>
+                </div>
+            </template>
+
+            <!-- ===== 用户管理 ===== -->
+            <template v-if="activeTab === 'users'">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>用户管理</h3>
+                        <button class="btn btn-primary" @click="openUserForm()">+ 新增用户</button>
+                    </div>
+                    <table class="data-table">
+                        <thead><tr>
+                            <th>ID</th><th>用户名</th><th>姓名</th><th>角色</th><th>手机号</th><th>状态</th><th>操作</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr v-for="u in users" :key="u.id">
+                                <td>{{ u.id }}</td>
+                                <td><strong>{{ u.username }}</strong></td>
+                                <td>{{ u.realName }}</td>
+                                <td><span :class="['tag', u.role==='管理员'?'tag-success':(u.role==='仓管员'?'tag-info':'tag-warning')]">{{ u.role }}</span></td>
+                                <td>{{ u.phone || '-' }}</td>
+                                <td><span :class="['tag', u.status===1?'tag-success':'tag-default']">{{ u.status===1?'启用':'禁用' }}</span></td>
+                                <td>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-default" @click="openUserForm(u)">编辑</button>
+                                        <button class="btn btn-sm btn-danger" @click="deleteUser(u.id)">删除</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div v-if="!users.length" class="empty">暂无用户数据</div>
+                </div>
+            </template>
+
+            <!-- ===== 系统管理 ===== -->
+            <template v-if="activeTab === 'system'">
+                <!-- 权限检查（代理模式） -->
+                <div class="panel">
+                    <div class="panel-header"><h3>操作权限检查 — 代理模式（Proxy）</h3></div>
+                    <p style="font-size:13px;color:#666;margin-bottom:12px;">当前角色: <strong>{{ currentUser.role }}</strong> | 代理层在真实操作前校验角色权限，权限不足则拒绝执行</p>
+                    <div class="search-bar">
+                        <select v-model="permCheckOp">
+                            <option v-for="op in permissionOps" :key="op" :value="op">{{ op }}</option>
+                        </select>
+                        <button class="btn btn-primary" @click="checkPerm">检查权限</button>
+                    </div>
+                    <div v-if="permCheckResult" :class="['tag', permCheckResult.includes('权限不足')?'tag-danger':'tag-success']" style="font-size:14px;padding:8px 16px;">{{ permCheckResult }}</div>
+                </div>
+
+                <!-- 系统配置（单例模式） -->
+                <div class="panel">
+                    <div class="panel-header"><h3>系统配置 — 单例模式（ConfigManager）</h3></div>
+                    <table class="data-table">
+                        <thead><tr><th>配置项</th><th>值</th></tr></thead>
+                        <tbody>
+                            <tr v-for="(v, k) in configs" :key="k">
+                                <td>{{ k }}</td>
+                                <td>{{ v }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 系统日志（单例模式） -->
+                <div class="panel">
+                    <div class="panel-header"><h3>系统日志 — 单例模式（LogManager）</h3></div>
+                    <div class="log-area">
+                        <div v-for="(log, i) in systemLogs" :key="i">{{ log }}</div>
+                        <div v-if="!systemLogs.length" style="color:#666;">暂无日志</div>
+                    </div>
+                </div>
+            </template>
+
+        </div>
+    </template>
+
+    <!-- 删除确认弹窗 -->
+    <div v-if="confirmDelete.visible" class="modal-overlay">
+        <div class="modal" style="max-width:400px;">
+            <h3>确认删除</h3>
+            <p style="margin:16px 0;font-size:15px;">{{ confirmDelete.message }}</p>
+            <div class="form-actions">
+                <button class="btn btn-default" @click="confirmDelete = { visible: false }">取消</button>
+                <button class="btn btn-danger" @click="confirmDelete.callback">确认删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通用弹窗 -->
+    <div v-if="showModal" class="modal-overlay" @click.self="showModal=false">
+        <div class="modal">
+            <h3>{{ modalTitle }}</h3>
+
+            <!-- 商品表单 -->
+            <template v-if="modalType==='product'">
+                <div class="form-group"><label>名称</label><input v-model="productForm.name"></div>
+                <div class="form-group"><label>分类</label><select v-model="productForm.category"><option>叶菜</option><option>根茎</option><option>水果</option><option>冷链品</option><option>粮油</option></select></div>
+                <div class="form-group"><label>保质期(天)</label><input type="number" v-model.number="productForm.shelfLifeDays"></div>
+                <div class="form-group"><label>存储条件</label><select v-model="productForm.storageCondition"><option>常温</option><option>冷藏</option><option>冷冻</option></select></div>
+                <div class="form-group"><label>单位</label><input v-model="productForm.unit"></div>
+                <div class="form-group"><label>描述</label><textarea v-model="productForm.description"></textarea></div>
+                <div class="form-group"><label>商品图片</label>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="file" accept="image/*" @change="onProductImageChange" style="font-size:13px;">
+                        <img v-if="productForm.image" :src="productForm.image" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #ddd;">
+                    </div>
+                </div>
+                <div class="form-group"><label>状态</label><select v-model.number="productForm.status"><option :value="1">上架</option><option :value="0">下架</option></select></div>
+                <div class="form-actions">
+                    <button class="btn btn-default" @click="showModal=false">取消</button>
+                    <button class="btn btn-primary" @click="saveProduct">保存</button>
+                </div>
+            </template>
+
+            <!-- 入库表单 -->
+            <template v-if="modalType==='inbound'">
+                <div class="form-group"><label>商品</label><select v-model="inboundForm.productId" @change="onInboundProductChange"><option :value="null">请选择</option><option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }} ({{ p.category }})</option></select></div>
+                <div v-if="inboundForm.productId" class="form-group"><label>储存条件</label><span class="tag tag-info">{{ products.find(p => p.id === inboundForm.productId)?.storageCondition || '-' }}</span></div>
+                <div class="form-group"><label>供应商</label><input v-model="inboundForm.supplier" placeholder="如：某市蔬菜基地"></div>
+                <div class="form-group"><label>批次号</label><input v-model="inboundForm.batchNo" placeholder="留空自动生成"></div>
+                <div class="form-group"><label>生产日期 <span style="color:red">*</span></label><input type="date" v-model="inboundForm.productionDate" required></div>
+                <div class="form-group"><label>数量 <span style="color:#999;font-weight:normal;">({{ getProductUnit(inboundForm.productId) || '单位' }})</span></label><input type="number" step="0.1" v-model.number="inboundForm.quantity"></div>
+                <div class="form-group"><label>货位</label>
+                    <select v-model="inboundForm.locationId">
+                        <option :value="null">{{ availableLocations.length ? '请选择货位' : '自动分配' }}</option>
+                        <option v-for="loc in availableLocations" :key="loc.id" :value="loc.id">{{ loc.code }} ({{ loc.zone }})</option>
+                    </select>
+                    <span v-if="availableLocations.length === 0" style="font-size:12px;color:#999;margin-left:8px;">无匹配货位，将自动分配</span>
+                </div>
+                <div class="form-group"><label>操作员</label><input v-model="inboundForm.operator"></div>
+                <div class="form-group"><label>备注</label><textarea v-model="inboundForm.remark"></textarea></div>
+                <div class="form-actions">
+                    <button class="btn btn-default" @click="showModal=false">取消</button>
+                    <button class="btn btn-primary" @click="saveInbound">创建</button>
+                </div>
+            </template>
+
+            <!-- 出库表单 -->
+            <template v-if="modalType==='outbound'">
+                <div class="form-group"><label>商品</label><select v-model="outboundForm.productId" @change="onOutboundProductChange"><option :value="null">请选择</option><option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option></select></div>
+                <div v-if="outboundForm.matchedBatch" style="font-size:13px;color:#2d8c3c;margin-bottom:10px;">{{ outboundForm.matchedBatch }}</div>
+                <div class="form-group"><label>数量</label><input type="number" step="0.1" v-model.number="outboundForm.quantity"></div>
+                <div class="form-group"><label>拣货策略</label><select v-model="outboundForm.pickingStrategy" @change="onOutboundProductChange"><option>FIFO</option><option>FEFO</option><option>CATEGORY</option></select></div>
+                <div class="form-group"><label>操作员</label><input v-model="outboundForm.operator"></div>
+                <div class="form-actions">
+                    <button class="btn btn-default" @click="showModal=false">取消</button>
+                    <button class="btn btn-primary" @click="saveOutbound">创建</button>
+                </div>
+            </template>
+
+            <!-- 订单表单 -->
+            <template v-if="modalType==='order'">
+                <div class="form-group"><label>商品</label><select v-model="orderForm.productId"><option :value="null">请选择</option><option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option></select></div>
+                <div class="form-group"><label>数量</label><input type="number" step="0.1" v-model.number="orderForm.quantity"></div>
+                <div class="form-group"><label>客户名称</label><input v-model="orderForm.customerName"></div>
+                <div class="form-group"><label>电话</label><input v-model="orderForm.customerPhone"></div>
+                <div class="form-group"><label>配送地址</label><input v-model="orderForm.deliveryAddress"></div>
+                <div class="form-actions">
+                    <button class="btn btn-default" @click="showModal=false">取消</button>
+                    <button class="btn btn-primary" @click="saveOrder">创建</button>
+                </div>
+            </template>
+
+            <!-- 补货表单 -->
+            <template v-if="modalType==='replenish'">
+                <div class="form-group"><label>商品</label><select v-model="replenishForm.productId"><option :value="null">请选择</option><option v-for="p in products" :key="p.id" :value="p.id">{{ p.name }}</option></select></div>
+                <div class="form-group"><label>补货数量</label><input type="number" step="0.1" v-model.number="replenishForm.replenishQuantity"></div>
+                <div class="form-group"><label>原因</label><select v-model="replenishForm.reason"><option>低库存</option><option>过期</option><option>报损</option></select></div>
+                <div class="form-group"><label>创建人</label><input v-model="replenishForm.creator"></div>
+                <div class="form-actions">
+                    <button class="btn btn-default" @click="showModal=false">取消</button>
+                    <button class="btn btn-primary" @click="saveReplenish">创建</button>
+                </div>
+            </template>
+
+            <!-- 用户表单 -->
+            <template v-if="modalType==='user'">
+                <div class="form-group"><label>用户名 <span style="color:red">*</span></label><input v-model="userForm.username" required></div>
+                <div class="form-group"><label>密码 <span v-if="!userForm.id" style="color:red">*</span></label><input type="password" v-model="userForm.password" :placeholder="userForm.id ? '留空则不修改密码' : ''"></div>
+                <div class="form-group"><label>姓名</label><input v-model="userForm.realName"></div>
+                <div class="form-group"><label>角色</label><select v-model="userForm.role"><option>管理员</option><option>仓管员</option><option>拣货员</option></select></div>
+                <div class="form-group"><label>手机号</label><input v-model="userForm.phone"></div>
+                <div class="form-group"><label>状态</label><select v-model.number="userForm.status"><option :value="1">启用</option><option :value="0">禁用</option></select></div>
+                <div class="form-actions">
+                    <button class="btn btn-default" @click="showModal=false">取消</button>
+                    <button class="btn btn-primary" @click="saveUser">保存</button>
+                </div>
+            </template>
+
+            <!-- 分配拣货员表单 -->
+            <template v-if="modalType==='picker-select'">
+                <div class="form-group"><label>拣货任务</label><span style="font-weight:bold;">#{{ pickerSelectTaskId }}</span></div>
+                <div class="form-group"><label>选择拣货员</label>
+                    <select v-model="selectedPickerName">
+                        <option value="">请选择拣货员</option>
+                        <option v-for="u in availablePickers" :key="u.id" :value="u.realName">{{ u.realName }} ({{ u.role }})</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-default" @click="showModal=false">取消</button>
+                    <button class="btn btn-primary" @click="savePickerAssign">确认分配</button>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div v-if="toastMsg" :class="['toast', 'toast-' + toastType]">{{ toastMsg }}</div>
+</div>
+
+<script src="/js/app.js?v=2"></script>
+<script>
+(function() {
+    var barReady = false, pieReady = false, drawn = false;
+    var barInst = null, pieInst = null;
+    function tryDraw() {
+        if (drawn || typeof echarts === 'undefined') return;
+        var bar = document.getElementById('barChart');
+        var pie = document.getElementById('pieChart');
+        if (!bar || !pie || bar.offsetParent === null) return;
+        if (bar.clientWidth === 0 || pie.clientWidth === 0) return;
+        drawn = true;
+        var headers = { 'Content-Type': 'application/json' };
+        var token = localStorage.getItem('token');
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        fetch('/api/reports/chart-data', { headers: headers })
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.code !== 200 || !d.data) return;
+                var dd = d.data;
+                if (barInst) barInst.dispose();
+                barInst = echarts.init(bar);
+                barInst.setOption({
+                    tooltip: { trigger: 'axis' },
+                    xAxis: { type: 'category', data: dd.productNames, axisLabel: { rotate: 30 } },
+                    yAxis: { type: 'value', name: '数量' },
+                    series: [{ type: 'bar', data: dd.productQuantities, itemStyle: { color: '#1890ff' } }],
+                    grid: { left: '3%', right: '4%', bottom: '15%', containLabel: true }
+                });
+                if (pieInst) pieInst.dispose();
+                pieInst = echarts.init(pie);
+                pieInst.setOption({
+                    tooltip: { trigger: 'item', formatter: '{b}: {c} 种 ({d}%)' },
+                    legend: { bottom: 0 },
+                    series: [{ type: 'pie', radius: ['40%', '70%'], label: { formatter: '{b}\n{d}%' }, data: dd.categoryPie }]
+                });
+                window.addEventListener('resize', function() { if (barInst) barInst.resize(); if (pieInst) pieInst.resize(); });
+            })
+            .catch(function(e) { drawn = false; });
+    }
+    var timer = setInterval(function() {
+        if (drawn) { clearInterval(timer); return; }
+        tryDraw();
+    }, 600);
+    tryDraw();
+})();
+</script>
+</body>
+</html>
