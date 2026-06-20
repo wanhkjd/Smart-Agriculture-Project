@@ -1,0 +1,15 @@
+19-Jun-2026 01:41:23.255 信息 [main] org.apache.catalina.core.ApplicationContext.log 1 Spring WebApplicationInitializers detected on classpath
+19-Jun-2026 01:41:23.510 信息 [main] org.apache.catalina.core.ApplicationContext.log Initializing Spring root WebApplicationContext
+19-Jun-2026 01:41:27.546 信息 [main] org.apache.catalina.core.ApplicationContext.log Initializing Spring DispatcherServlet 'dispatcher'
+19-Jun-2026 01:54:02.932 信息 [Thread-1] org.apache.catalina.core.ApplicationContext.log Destroying Spring FrameworkServlet 'dispatcher'
+19-Jun-2026 01:54:02.988 信息 [Thread-1] org.apache.catalina.core.ApplicationContext.log Closing Spring root WebApplicationContext
+19-Jun-2026 01:54:12.442 信息 [main] org.apache.catalina.core.ApplicationContext.log 1 Spring WebApplicationInitializers detected on classpath
+19-Jun-2026 01:54:12.569 信息 [main] org.apache.catalina.core.ApplicationContext.log Initializing Spring root WebApplicationContext
+19-Jun-2026 01:54:14.764 信息 [main] org.apache.catalina.core.ApplicationContext.log Initializing Spring DispatcherServlet 'dispatcher'
+19-Jun-2026 02:17:53.805 信息 [Thread-1] org.apache.catalina.core.ApplicationContext.log Destroying Spring FrameworkServlet 'dispatcher'
+19-Jun-2026 02:17:53.836 信息 [Thread-1] org.apache.catalina.core.ApplicationContext.log Closing Spring root WebApplicationContext
+19-Jun-2026 02:18:03.413 信息 [main] org.apache.catalina.core.ApplicationContext.log 1 Spring WebApplicationInitializers detected on classpath
+19-Jun-2026 02:18:03.547 信息 [main] org.apache.catalina.core.ApplicationContext.log Initializing Spring root WebApplicationContext
+19-Jun-2026 02:18:05.939 信息 [main] org.apache.catalina.core.ApplicationContext.log Initializing Spring DispatcherServlet 'dispatcher'
+19-Jun-2026 02:31:44.250 信息 [Thread-1] org.apache.catalina.core.ApplicationContext.log Destroying Spring FrameworkServlet 'dispatcher'
+19-Jun-2026 02:31:45.071 信息 [Thread-1] org.apache.catalina.core.ApplicationContext.log Closing Spring root WebApplicationContext

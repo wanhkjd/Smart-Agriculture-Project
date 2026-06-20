@@ -1,0 +1,67 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.suoduan.mapper.BillMapper">
+
+    <resultMap id="billMap" type="com.suoduan.entity.Bill">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="amount" column="amount"/>
+        <result property="type" column="type"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="date" column="date"/>
+        <result property="remark" column="remark"/>
+        <result property="categoryName" column="category_name"/>
+    </resultMap>
+
+    <sql id="billConditions">
+        WHERE b.user_id = #{userId}
+        <if test="start != null">AND b.date &gt;= #{start}</if>
+        <if test="end != null">AND b.date &lt;= #{end}</if>
+        <if test="categoryId != null">AND b.category_id = #{categoryId}</if>
+        <if test="type != null and type != ''">AND b.type = #{type}</if>
+    </sql>
+
+    <select id="findByUserId" resultMap="billMap">
+        SELECT b.*, c.name AS category_name
+        FROM bill b
+        JOIN category c ON b.category_id = c.id
+        <include refid="billConditions"/>
+        ORDER BY b.date DESC, b.id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByUserId" resultType="long">
+        SELECT COUNT(*)
+        FROM bill b
+        <include refid="billConditions"/>
+    </select>
+
+    <select id="findById" resultMap="billMap">
+        SELECT b.*, c.name AS category_name
+        FROM bill b JOIN category c ON b.category_id = c.id
+        WHERE b.id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bill (user_id, amount, type, category_id, date, remark)
+        VALUES (#{userId}, #{amount}, #{type}, #{categoryId}, #{date}, #{remark})
+    </insert>
+
+    <update id="update">
+        UPDATE bill
+        <set>
+            <if test="amount != null">amount = #{amount},</if>
+            <if test="type != null">type = #{type},</if>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="date != null">date = #{date},</if>
+            <if test="remark != null">remark = #{remark},</if>
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM bill WHERE id = #{id} AND user_id = #{userId}
+    </delete>
+
+</mapper>

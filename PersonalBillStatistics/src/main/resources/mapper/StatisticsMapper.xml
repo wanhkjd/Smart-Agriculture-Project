@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.suoduan.mapper.StatisticsMapper">
+
+    <select id="categorySum" resultType="com.suoduan.entity.StatItem">
+        SELECT c.name, COALESCE(SUM(b.amount), 0) AS value
+        FROM category c
+        LEFT JOIN bill b ON c.id = b.category_id
+            AND b.user_id = #{userId}
+            <if test="start != null">AND b.date &gt;= #{start}</if>
+            <if test="end != null">AND b.date &lt;= #{end}</if>
+        WHERE c.type = #{type}
+        GROUP BY c.id, c.name
+        ORDER BY value DESC
+    </select>
+
+    <select id="monthlySum" resultType="com.suoduan.entity.MonthStat">
+        SELECT DATE_FORMAT(date, '%m') AS month, COALESCE(SUM(amount), 0) AS amount
+        FROM bill
+        WHERE user_id = #{userId}
+            AND type = #{type}
+            AND YEAR(date) = #{year}
+        GROUP BY DATE_FORMAT(date, '%m')
+        ORDER BY month
+    </select>
+
+    <select id="monthlyCompare" resultType="com.suoduan.entity.MonthCompare">
+        SELECT
+            m.month,
+            COALESCE(SUM(CASE WHEN b.type = 'income' THEN b.amount ELSE 0 END), 0) AS income,
+            COALESCE(SUM(CASE WHEN b.type = 'expense' THEN b.amount ELSE 0 END), 0) AS expense
+        FROM (
+            SELECT '01' AS month UNION ALL SELECT '02' UNION ALL SELECT '03'
+            UNION ALL SELECT '04' UNION ALL SELECT '05' UNION ALL SELECT '06'
+            UNION ALL SELECT '07' UNION ALL SELECT '08' UNION ALL SELECT '09'
+            UNION ALL SELECT '10' UNION ALL SELECT '11' UNION ALL SELECT '12'
+        ) m
+        LEFT JOIN bill b ON DATE_FORMAT(b.date, '%m') = m.month
+            AND b.user_id = #{userId}
+            AND YEAR(b.date) = #{year}
+        GROUP BY m.month
+        ORDER BY m.month
+    </select>
+
+</mapper>
